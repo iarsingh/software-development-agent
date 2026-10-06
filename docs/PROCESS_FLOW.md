@@ -8,9 +8,9 @@ Endpoint: `POST /agent/run`. Input: goal + optional payload. The processing stag
 flowchart TD
   A["POST /agent/run"] --> B{"Non-empty string goal?"}
   B -->|"No"| E["HTTP 422"]
-  B -->|"Yes"| C{"Contains git push, apply, or merge?"}
+  B -->|"Yes"| C{"Contains blocked write phrase or token?"}
   C -->|"Yes"| R["Refused: empty tools; no writes"]
-  C -->|"No"| P["Return fixed plan: add test; change handler"]
+  C -->|"No"| P["Return goal-aware plan, scoped files, and acceptance checks"]
   P --> O["wrote false; applied false; no executor"]
 ```
 
@@ -23,7 +23,7 @@ flowchart TD
   C["Create tenant-scoped workspace"] --> J["Submit job: workspace + payload + target"]
   J --> V{"Workspace belongs to selected tenant?"}
   V -->|"No"| E["HTTP 404"]
-  V -->|"Yes"| P{"Target is prod or production?"}
+  V -->|"Yes"| P{"Normalized target is prod or production?"}
   P -->|"Yes"| Q["pending_approval"]
   P -->|"No"| L["queued"]
   Q --> A["Approval request"]
@@ -33,4 +33,4 @@ flowchart TD
   K --> S["No executor / no production apply"]
 ```
 
-Approval first checks job ownership using the selected tenant. Status changes and audit records remain in memory. The approval endpoint does not enforce a full transition state machine: repeated lab approval is possible. The domain request flow and this job-record flow are independent. Source: [ops.py](../src/devagent/ops.py).
+Approval first checks job ownership using the selected tenant. Status changes and audit records remain in memory. Repeated lab approval returns the original approval without duplicating its event or counter. Ops transitions are protected by an in-process lock. The domain request flow and this job-record flow are independent. Source: [ops.py](../src/devagent/ops.py).

@@ -4,13 +4,13 @@ Answers describe this repository's current implementation. Suggested production 
 
 ## 1. Does this agent generate or apply a patch?
 
-No. `run` returns the fixed plan `["add test", "change handler"]`. It advertises `plan` and `draft_patch` in `tools`, but there is no tool executor, patch content, model call, repository read, or application step.
+The planner is deterministic and returns test, implementation, verification, and review steps. The goal selects an API-handler or implementation focus; validated relative file paths and acceptance checks describe scope. It does not generate a diff, call a model, read files, execute tools, or apply changes.
 
 Source: [src/devagent/agent.py](src/devagent/agent.py).
 
 ## 2. Which goals are refused?
 
-A case-insensitive substring scan rejects goals containing `git push`, `apply`, or `merge`. For example, `git push origin main` returns `refused: true` and an empty tools list. This is a coarse phrase check, not a complete command policy.
+A case-insensitive word-boundary scan rejects goals containing `git push`, `apply`, or `merge`. For example, `git push origin main` returns `refused: true` and an empty tools list. This is a coarse phrase check, not a complete command policy.
 
 Source: [src/devagent/agent.py](src/devagent/agent.py).
 
@@ -22,13 +22,13 @@ Source: [src/devagent/agent.py](src/devagent/agent.py).
 
 ## 4. What happens to the payload?
 
-The handler passes `body.get("payload") or body`, but the current `run` implementation does not read the payload. A future implementation would need an explicit schema and tool input validation.
+The handler passes `body.get("payload") or body`. The planner validates an optional list of at most 50 workspace-relative paths, rejects traversal and absolute paths, and returns deduplicated scope. It does not open or modify these paths.
 
 Source: [src/devagent/agent.py](src/devagent/agent.py).
 
 ## 5. How would you demonstrate the current behavior?
 
-Send `{"goal":"add a healthz test"}` to `/agent/run`. The response contains the fixed plan and `wrote: false`, `applied: false`. Then demonstrate a refused goal; do not describe the first response as a generated patch.
+Send `{"goal":"add a healthz test"}` to `/agent/run`. The response contains a goal-aware deterministic plan and `wrote: false`, `applied: false`. Then demonstrate a refused goal; do not describe the first response as a generated patch.
 
 Source: [src/devagent/agent.py](src/devagent/agent.py).
 
@@ -40,13 +40,13 @@ Source: [src/devagent/agent.py](src/devagent/agent.py).
 
 ## 7. What is the main limitation of the refusal scan?
 
-It can reject harmless text containing a blocked substring and miss other descriptions of mutations. Keep real execution permissions separate from natural-language checks before adding tool execution.
+Word-boundary matching avoids some substring false positives but can still miss other descriptions of mutations. Keep real execution permissions separate from natural-language checks before adding tool execution.
 
 Source: [src/devagent/agent.py](src/devagent/agent.py).
 
 ## 8. What would a useful next iteration add?
 
-Add a structured plan schema, read-only source inspection, concrete proposed diffs, and tests for the patch proposal. Keep execution behind an explicit permission boundary and isolated workspace.
+Extend the current scope and acceptance-check output with read-only source inspection and concrete proposed diffs. Keep execution behind an explicit permission boundary and isolated workspace.
 
 Source: [src/devagent/agent.py](src/devagent/agent.py).
 
@@ -70,7 +70,7 @@ Source: [src/devagent/ops.py](src/devagent/ops.py).
 
 ## 12. What happens when a production job is approved?
 
-Targets exactly equal to `prod` or `production` create a `pending_approval` job and approval returns HTTP 403. Other target strings are queued. Approval of a lab job changes its status only; it does not execute a workload.
+Targets are trimmed and normalized to lowercase before policy checks. `prod` and `production`, including case/padding variants, create a `pending_approval` job and approval returns HTTP 403. Repeated lab approval is idempotent; approval changes a record only, without executing a workload.
 
 Source: [src/devagent/ops.py](src/devagent/ops.py).
 
